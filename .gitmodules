@@ -1,0 +1,4 @@
+[submodule "AutoNav_modules"]
+	path = AutoNav_modules
+	url = https://github.com/AshtinDonuts/AutoNav_modules.git
+	branch = refactored

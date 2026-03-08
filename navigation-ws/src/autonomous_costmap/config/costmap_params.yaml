@@ -1,0 +1,29 @@
+/**:
+  ros__parameters:
+    # ===== Input/Output Topics =====
+    input_pointcloud_topic: '/zed/zed_node/point_cloud/cloud_registered'
+    height_map_topic: '/height_map'
+    traversability_topic: '/height_traversability_costmap'
+    
+    # ===== Grid Parameters =====
+    frame_id: 'odom'
+    resolution: 0.20          # meters per cell
+    width_m: 100.0            # grid width in meters
+    height_m: 100.0           # grid height in meters
+    
+    # ===== Point Filtering (basic, no hacks) =====
+    min_z: -1.0               # minimum height to include
+    max_z: 2.0                # maximum height to include
+    max_range: 15.0           # maximum distance from camera
+    min_points_per_cell: 2    # minimum points to consider cell valid
+    
+    # ===== Height Normalization (visualization) =====
+    height_norm_min: -1.0     # height value mapped to dark
+    height_norm_max: 1.5      # height value mapped to light
+    
+    # ===== Traversability Rules (ONLY tuning needed) =====
+    # These two parameters are the ONLY ones that affect navigation
+    # Everything else is purely cosmetic or basic filtering
+    free_slope_deg: 5.0       # slopes <= this are traversable (green)
+    lethal_slope_deg: 25.0    # slopes >= this are impassable (red)
+    unknown_as_obstacle: true # treat unknown cells as obstacles (safer)

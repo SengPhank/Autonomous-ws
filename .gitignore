@@ -1,0 +1,9 @@
+build/
+install/
+log/
+rosbags
+src/rosbags/
+
+*__pycache__/
+
+src/rover_internal/mapping_module/launch/older_launch_files/*
