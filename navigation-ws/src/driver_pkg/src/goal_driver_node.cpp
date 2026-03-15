@@ -8,66 +8,72 @@
 #include "rover_messages/msg/drive_move_cmd.hpp"
 #include "rover_messages/msg/drive_op_cmd.hpp"
 #include "rover_messages/msg/auton_drive.hpp"
+#include "rover_messages/msg/manager_cmd.hpp"
 #include "rover_messages/Enums.hpp"
 
-class GoalDriver : public rclcpp::Node {
-private:
-    // Velocity limits
-    double max_linear_vel = 1;    // Maximum forward/backward velocity (m/s)
-    double max_angular_vel = 1.0;   // Maximum rotation velocity (rad/s)
-    
-    // Goal parameters
-    double goal_timeout_sec = 30.0; // Maximum time to reach goal before giving up (seconds)
-    double goal_tolerance = 0.1;    // How close to goal counts as "reached" (meters)
-    double turn_threshold = 0.5;    // Angular error threshold to decide turn-in-place vs drive (~28 degrees in radians)
-    double max_distance = 2.0;      // Distance at which velocity is fully scaled (meters)
-    
+class GoalDriver : public rclcpp::Node {    
 public:
-    GoalDriver() : Node("goal_driver"), 
-                   goal_received_(false),
-                   current_mode_(DriveMode::NPT) {
+    GoalDriver() : Node("goal_driver_node"), goal_received_(false), current_mode_(DriveMode::NPT) {
         
+        // --- DECLARE PARAMETERS ---
+        this->declare_parameter("goal_timeout_sec", 45.0);
+        this->declare_parameter("goal_tolerance", 0.15);
+        this->declare_parameter("turn_threshold", 0.4);
+        this->declare_parameter("max_distance", 2.5);
+        
+        // Fetch initial values
+        update_params();
+        
+        // TF setup
         tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
         tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
         
-        // Subscribe to goal pose (RViz or nav2 style)
+        // --- SUBSCRIPTIONS ---
         goal_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
-            "/goal_pose", 10,
-            std::bind(&GoalDriver::goal_callback, this, std::placeholders::_1));
+            "/goal_pose", 10, std::bind(&GoalDriver::goal_callback, this, std::placeholders::_1));
         
-        // Subscribe to direct position commands
         drive_pos_ = this->create_subscription<rover_messages::msg::AutonDrive>(
-            "/drive_pos", 10,
-            std::bind(&GoalDriver::pos_callback, this, std::placeholders::_1));
+            "/drive_pos", 10, std::bind(&GoalDriver::pos_callback, this, std::placeholders::_1));
         
-        move_cmd_pub_ = this->create_publisher<rover_messages::msg::DriveMoveCmd>(
-            "rover/drive/move_cmd", 10);
+        manager_sub_ = this->create_subscription<rover_messages::msg::ManagerCmd>(
+            "rover/manager/cmd", 10, std::bind(&GoalDriver::manager_callback, this, std::placeholders::_1));
         
-        op_cmd_pub_ = this->create_publisher<rover_messages::msg::DriveOpCmd>(
-            "rover/drive/op_cmd", 10);
+        // --- PUBLISHERS ---
+        move_cmd_pub_ = this->create_publisher<rover_messages::msg::DriveMoveCmd>("rover/drive/move_cmd", 10);
+        op_cmd_pub_ = this->create_publisher<rover_messages::msg::DriveOpCmd>("rover/drive/op_cmd", 10);
         
-        timer_ = this->create_wall_timer(
-            std::chrono::milliseconds(100),
-            std::bind(&GoalDriver::control_loop, this));
+        // Control loop timer
+        timer_ = this->create_wall_timer(std::chrono::milliseconds(100), std::bind(&GoalDriver::control_loop, this));
         
-        // Set initial drive mode to NPT
         send_drive_mode(DriveMode::NPT);
-        
-        RCLCPP_INFO(this->get_logger(), 
-                    "Goal driver started\n"
-                    "  Max linear vel: %.2f m/s\n"
-                    "  Max angular vel: %.2f rad/s\n"
-                    "  Goal tolerance: %.2f m\n"
-                    "  Turn threshold: %.2f rad (%.1f deg)\n"
-                    "  Max distance for normalization: %.2f m\n", 
-                    max_linear_vel, max_angular_vel, goal_tolerance,
-                    turn_threshold, turn_threshold * 180.0 / M_PI, max_distance);
+        RCLCPP_INFO(this->get_logger(), "Goal driver initialized");
     }
 
 private:
+    void update_params() {
+        goal_timeout_sec_ = this->get_parameter("goal_timeout_sec").as_double();
+        goal_tolerance_ = this->get_parameter("goal_tolerance").as_double();
+        turn_threshold_ = this->get_parameter("turn_threshold").as_double();
+        max_distance_ = this->get_parameter("max_distance").as_double();
+    }
+    
+    void manager_callback(const rover_messages::msg::ManagerCmd::SharedPtr msg) {
+        if (msg->shutdown) {
+            if (!system_stopped_) {
+                RCLCPP_WARN(this->get_logger(), "MANAGER STOP: Halting all motion");
+                emergency_stop();
+            }
+            system_stopped_ = true;
+        } else {
+            if (system_stopped_) {
+                RCLCPP_INFO(this->get_logger(), "MANAGER RESUME: System ready");
+            }
+            system_stopped_ = false;
+        }
+    }
+    
     void send_drive_mode(DriveMode mode) {
-        // Only send if mode actually changed (avoid spam)
-        if (mode == current_mode_) return;
+        if (mode == current_mode_) return;  // Avoid spam
         
         auto op_cmd = rover_messages::msg::DriveOpCmd();
         op_cmd.drive_mode = static_cast<uint8_t>(mode);
@@ -81,7 +87,7 @@ private:
                                (mode == DriveMode::ACKERMANN) ? "ACKERMANN" :
                                (mode == DriveMode::CRABERMANN) ? "CRABERMANN" : "UNKNOWN";
         
-        RCLCPP_INFO(this->get_logger(), "Drive mode changed to: %s", mode_name);
+        RCLCPP_INFO(this->get_logger(), "Drive mode: %s", mode_name);
     }
     
     void emergency_stop() {
@@ -91,26 +97,22 @@ private:
         cmd.yaw_cmd = 0.0;
         move_cmd_pub_->publish(cmd);
         goal_received_ = false;
-        RCLCPP_WARN(this->get_logger(), "EMERGENCY STOP ACTIVATED");
+        RCLCPP_WARN(this->get_logger(), "EMERGENCY STOP");
     }
     
     void pos_callback(const rover_messages::msg::AutonDrive::SharedPtr msg) {
-        // Check if stop command
         if (msg->stop) {
-            RCLCPP_WARN(this->get_logger(), "Stop command received via /drive_pos");
+            RCLCPP_WARN(this->get_logger(), "Stop command via /drive_pos");
             emergency_stop();
             return;
         }
         
-        // Validate position values (check for NaN or Inf)
         if (!std::isfinite(msg->x_cmd) || !std::isfinite(msg->y_cmd)) {
-            RCLCPP_ERROR(this->get_logger(), 
-                        "Invalid position received via /drive_pos! Contains NaN or Inf values. Stopping.");
+            RCLCPP_ERROR(this->get_logger(), "Invalid position (NaN/Inf)! Stopping.");
             emergency_stop();
             return;
         }
         
-        // Set new goal in odom frame
         goal_x_ = msg->x_cmd;
         goal_y_ = msg->y_cmd;
         goal_received_ = true;
@@ -120,18 +122,15 @@ private:
     }
     
     void goal_callback(const geometry_msgs::msg::PoseStamped::SharedPtr msg) {
-        // Validate goal pose (check for NaN or Inf)
         if (!std::isfinite(msg->pose.position.x) || 
             !std::isfinite(msg->pose.position.y) ||
             !std::isfinite(msg->pose.orientation.z) ||
             !std::isfinite(msg->pose.orientation.w)) {
-            RCLCPP_ERROR(this->get_logger(), 
-                        "Invalid goal pose received! Contains NaN or Inf values. Stopping.");
+            RCLCPP_ERROR(this->get_logger(), "Invalid goal pose (NaN/Inf)! Stopping.");
             emergency_stop();
             return;
         }
         
-        // Set new goal in odom frame
         goal_x_ = msg->pose.position.x;
         goal_y_ = msg->pose.position.y;
         goal_received_ = true;
@@ -141,17 +140,18 @@ private:
     }
     
     void control_loop() {
-        if (!goal_received_) return;
-
-        // Check if we've exceeded the timeout
+        if (!goal_received_ || system_stopped_) return;
+        
+        update_params();
+        
+        // Check timeout
         double elapsed = (this->now() - goal_start_time_).seconds();
-        if (elapsed > goal_timeout_sec) {
-            RCLCPP_ERROR(this->get_logger(), 
-                        "Goal timeout after %.1f seconds! Stopping.", elapsed);
+        if (elapsed > goal_timeout_sec_) {
+            RCLCPP_ERROR(this->get_logger(), "Goal timeout (%.1fs)! Stopping.", elapsed);
             emergency_stop();
             return;
         }
-
+        
         // Get current robot pose from TF
         geometry_msgs::msg::TransformStamped tf;
         try {
@@ -161,24 +161,23 @@ private:
                                "TF lookup failed: %s", ex.what());
             return;
         }
-
+        
         double x = tf.transform.translation.x;
         double y = tf.transform.translation.y;
         
-        // Validate odometry (check for NaN or Inf)
         if (!std::isfinite(x) || !std::isfinite(y)) {
-            RCLCPP_ERROR(this->get_logger(), "Invalid odometry received! Stopping.");
+            RCLCPP_ERROR(this->get_logger(), "Invalid odometry (NaN/Inf)! Stopping.");
             emergency_stop();
             return;
         }
         
-        // Extract yaw angle from quaternion
+        // Extract yaw from quaternion
         tf2::Quaternion q;
         tf2::fromMsg(tf.transform.rotation, q);
         tf2::Matrix3x3 m(q);
         double roll, pitch, yaw;
         m.getRPY(roll, pitch, yaw);
-
+        
         // Calculate distance and angle to goal
         double dx = goal_x_ - x;
         double dy = goal_y_ - y;
@@ -189,62 +188,60 @@ private:
         // Normalize angle to [-π, π]
         while (yaw_error > M_PI) yaw_error -= 2*M_PI;
         while (yaw_error < -M_PI) yaw_error += 2*M_PI;
-
+        
         auto cmd = rover_messages::msg::DriveMoveCmd();
-
-        // Check if goal is reached
-        if (distance < goal_tolerance) {
+        
+        // Check if goal reached
+        if (distance < goal_tolerance_) {
             cmd.x_cmd = 0.0;
             cmd.y_cmd = 0.0;
             cmd.yaw_cmd = 0.0;
             move_cmd_pub_->publish(cmd);
             goal_received_ = false;
-            RCLCPP_INFO(this->get_logger(), "Goal reached! Final distance: %.3fm", distance);
+            RCLCPP_INFO(this->get_logger(), "Goal reached! Distance: %.3fm", distance);
             return;
         }
-
-        // Normalize distance and rotation to [-1, 1]
-        double normalized_distance = std::clamp(distance / max_distance, 0.0, 1.0);
+        
+        // Normalize to [0, 1] for speed and [-1, 1] for rotation
+        double normalized_distance = std::clamp(distance / max_distance_, 0.0, 1.0);
         double normalized_yaw_error = std::clamp(yaw_error / M_PI, -1.0, 1.0);
-
-        // Decide between turning in place vs driving
-        if (std::abs(yaw_error) > turn_threshold) {
+        
+        // Decide: turn in place vs drive
+        if (std::abs(yaw_error) > turn_threshold_) {
             // TURN IN PLACE MODE
-            // Switch to NPT mode for rotation
             send_drive_mode(DriveMode::NPT);
             
-            cmd.x_cmd = 0.0;  // No forward motion
-            cmd.y_cmd = 0.0;  // No lateral motion
-            cmd.yaw_cmd = normalized_yaw_error * max_angular_vel;
+            cmd.x_cmd = 0.0;                    
+            cmd.y_cmd = 0.0;                    // no lateral
+            cmd.yaw_cmd = normalized_yaw_error; // [-1, 1] - normalized rotation
             
             RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
-                               "Turning: yaw_error=%.2f° (%.3f rad), normalized=%.3f", 
-                               yaw_error * 180.0 / M_PI, yaw_error, normalized_yaw_error);
+                               "Turning: yaw_error=%.1f° (cmd=%.2f)", 
+                               yaw_error * 180.0 / M_PI, cmd.yaw_cmd);
         } else {
             // DRIVE FORWARD MODE
-            // Switch to LINEAR mode for driving
             send_drive_mode(DriveMode::LINEAR);
             
-            // Proportional control for velocity (using normalized values)
-            cmd.x_cmd = normalized_distance * max_linear_vel;
-            cmd.y_cmd = 0.0;
-            cmd.yaw_cmd = normalized_yaw_error * max_angular_vel;
+            cmd.x_cmd = normalized_distance;   
+            cmd.y_cmd = 0.0;                    // no lateral
+            cmd.yaw_cmd = normalized_yaw_error; // [-1, 1]
             
             RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
-                               "Driving: dist=%.2fm (norm=%.3f), vel=%.2fm/s, time=%.1fs", 
-                               distance, normalized_distance, cmd.x_cmd, elapsed);
+                               "Driving: dist=%.2fm, speed_cmd=%.2f, yaw_cmd=%.2f, t=%.1fs", 
+                               distance, cmd.x_cmd, cmd.yaw_cmd, elapsed);
         }
-
+        
         move_cmd_pub_->publish(cmd);
     }
-
-    // TF for odometry
+    
+    // TF
     std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
     std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
     
     // Subscribers
     rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr goal_sub_;
     rclcpp::Subscription<rover_messages::msg::AutonDrive>::SharedPtr drive_pos_;
+    rclcpp::Subscription<rover_messages::msg::ManagerCmd>::SharedPtr manager_sub_;
     
     // Publishers
     rclcpp::Publisher<rover_messages::msg::DriveMoveCmd>::SharedPtr move_cmd_pub_;
@@ -254,10 +251,17 @@ private:
     rclcpp::TimerBase::SharedPtr timer_;
     
     // State
+    bool system_stopped_ = false;
     bool goal_received_;
     double goal_x_, goal_y_;
     rclcpp::Time goal_start_time_;
-    DriveMode current_mode_;  // Track current drive mode
+    DriveMode current_mode_;
+    
+    // Parameters (no max_linear_vel or max_angular_vel - not needed!)
+    double goal_timeout_sec_;
+    double goal_tolerance_;
+    double turn_threshold_;
+    double max_distance_;
 };
 
 int main(int argc, char **argv) {
@@ -267,4 +271,7 @@ int main(int argc, char **argv) {
     return 0;
 }
 
-// ros2 topic pub /drive_pos rover_messages/msg/AutonDrive "{x_cmd: 0.0, y_cmd: 0.0, stop: false}" --once
+// USAGE:
+// ros2 topic pub /goal_pose geometry_msgs/msg/PoseStamped "{header: {frame_id: 'odom'}, pose: {position: {x: 2.0, y: 1.0, z: 0.0}}}" --once
+// CUSTOM MSG
+// ros2 topic pub /drive_pos rover_messages/msg/AutonDrive "{x_cmd: 3.0, y_cmd: -1.5, stop: false}" --once

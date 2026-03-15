@@ -11,6 +11,7 @@ set(msg_files
   "msg/DriveOpCmd.msg"
   "msg/DriveState.msg"
   "msg/AutonDrive.msg"
+  "msg/ManagerCmd.msg"
 )
 
 # Generate interfaces
