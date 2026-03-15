@@ -15,12 +15,12 @@ find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 
 # ============== Add Goal driver executable ============== 
-add_executable(goal_driver src/goal_driver.cpp)
+add_executable(goal_driver_node src/goal_driver_node.cpp)
 # Manually add rover_messages include directory
-target_include_directories(goal_driver PUBLIC
+target_include_directories(goal_driver_node PUBLIC
   ${rover_messages_INCLUDE_DIRS}
 )
-ament_target_dependencies(goal_driver
+ament_target_dependencies(goal_driver_node
   rclcpp
   tf2_ros
   tf2_geometry_msgs
@@ -29,11 +29,11 @@ ament_target_dependencies(goal_driver
 )
 
 # ============== Install both executables ============== 
-install(TARGETS goal_driver
+install(TARGETS goal_driver_node
   DESTINATION lib/${PROJECT_NAME}
 )
-# Install launch files, urdf, worlds, rviz
-install(DIRECTORY launch DESTINATION share/${PROJECT_NAME})
+# Install
+install(DIRECTORY launch config DESTINATION share/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

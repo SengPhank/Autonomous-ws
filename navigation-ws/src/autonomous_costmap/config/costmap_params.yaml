@@ -1,29 +1,39 @@
 /**:
   ros__parameters:
-    # ===== Input/Output Topics =====
+    # ===== Topics =====
     input_pointcloud_topic: '/zed/zed_node/point_cloud/cloud_registered'
-    height_map_topic: '/height_map'
-    traversability_topic: '/height_traversability_costmap'
-    
-    # ===== Grid Parameters =====
+    output_costmap_topic: '/global_costmap'
+
+    # ===== Frame =====
     frame_id: 'odom'
-    resolution: 0.20          # meters per cell
-    width_m: 100.0            # grid width in meters
-    height_m: 100.0           # grid height in meters
-    
-    # ===== Point Filtering (basic, no hacks) =====
-    min_z: -1.0               # minimum height to include
-    max_z: 2.0                # maximum height to include
-    max_range: 15.0           # maximum distance from camera
-    min_points_per_cell: 2    # minimum points to consider cell valid
-    
-    # ===== Height Normalization (visualization) =====
-    height_norm_min: -1.0     # height value mapped to dark
-    height_norm_max: 1.5      # height value mapped to light
-    
-    # ===== Traversability Rules (ONLY tuning needed) =====
-    # These two parameters are the ONLY ones that affect navigation
-    # Everything else is purely cosmetic or basic filtering
-    free_slope_deg: 5.0       # slopes <= this are traversable (green)
-    lethal_slope_deg: 25.0    # slopes >= this are impassable (red)
-    unknown_as_obstacle: true # treat unknown cells as obstacles (safer)
+
+    # ===== Grid =====
+    resolution: 0.10        # metres per cell
+    width_m: 150.0          # total map width  (robot starts centred)
+    height_m: 150.0         # total map height
+
+    # ===== Point Filtering =====
+    min_z: -1.0
+    max_z: 2.5
+    min_range: 0.3          # ZED 2i minimum reliable depth — rejects (0,0,0) corrupted points
+    max_range: 12.0
+    min_points_per_cell: 3
+
+    # ===== Traversability =====
+    free_slope_deg: 5.0
+    lethal_slope_deg: 20.0
+    max_variance: 0.05      # m^2 — above this, cost starts rising (grass is ~0.02-0.04)
+    lethal_variance: 0.15   # m^2 — above this, cell is lethal
+    vertical_obstacle_height: 0.15   # metres — Z range within cell to trigger lethal
+
+    # IMPORTANT: false for a large global map.
+    # true would paint the entire 150x150m pink (unknown = lethal).
+    # Unknown cells are left as -1 which Nav2 treats as free/unknown.
+    unknown_as_obstacle: false
+
+    # ===== Inflation =====
+    robot_radius: 0.35      # metres — set to your rover's actual half-width
+
+    # ===== Decay / TF =====
+    cell_decay_sec: 0.0     # 0 = never expire (persistent map)
+    tf_timeout_sec: 0.1

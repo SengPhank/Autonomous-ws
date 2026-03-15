@@ -59,11 +59,12 @@ ros2 launch mapping_module new_rtab.launch.py camera_model:=zed2i
 ```
 Launch rviz2 for visualisation
 ```bash
-rviz2
+rviz2   
 ```
 
-Launch costmap
+Launch features
 ```bash
-ros2 launch autonomous_costmap costmap.launch.py
+cd navigation-ws
+ros2 launch autonomous_costmap costmap.launch.py # Costmap
+ros2 launch driver_pkg goal_driver.launch.py # autonDriver
 ```
-

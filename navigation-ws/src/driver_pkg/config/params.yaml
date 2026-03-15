@@ -1,0 +1,15 @@
+goal_driver_node:
+  ros__parameters:
+    # Distance threshold for "goal reached" (meters)
+    goal_tolerance: 0.15
+    
+    # Yaw error threshold for turning in place (radians)
+    # 0.4 rad ≈ 23 degrees
+    turn_threshold: 0.4
+    
+    # Distance that equals 100% speed command
+    # At this distance or greater, speed_cmd = 1.0
+    max_distance: 2.5
+    
+    # Maximum time to reach goal before timeout (seconds)
+    goal_timeout_sec: 45.0
