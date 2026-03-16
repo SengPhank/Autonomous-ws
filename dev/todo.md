@@ -14,3 +14,10 @@ CUDA version V12.8.61
 
 # Other
 Yaml config changes for ros2 wrapper is inside /dev
+
+# Run 
+Run the command below inside AutoNav_modules to remove the build error
+```bash
+grep -rl "message_filters/.*\.hpp" src/rtabmap_ros/rtabmap_sync | xargs sed -i 's/\(message_filters\/.*\)\.hpp/\1.h/g'
+find src/ -type f \( -name "*.cpp" -o -name "*.hpp" -o -name "*.h" \) -exec sed -i 's|#include <message_filters/\(.*\)\.hpp>|#include <message_filters/\1.h|g' {} +
+```
