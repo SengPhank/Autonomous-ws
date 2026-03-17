@@ -39,8 +39,8 @@ public:
             "rover/manager/cmd", 10, std::bind(&GoalDriver::manager_callback, this, std::placeholders::_1));
         
         // --- PUBLISHERS ---
-        move_cmd_pub_ = this->create_publisher<rover_messages::msg::DriveMoveCmd>("rover/drive/move_cmd", 10);
-        op_cmd_pub_ = this->create_publisher<rover_messages::msg::DriveOpCmd>("rover/drive/op_cmd", 10);
+        move_cmd_pub_ = this->create_publisher<rover_messages::msg::DriveMoveCmd>("rover/drive/drive_move_cmd", 10);
+        op_cmd_pub_ = this->create_publisher<rover_messages::msg::DriveOpCmd>("rover/drive/drive_op_cmd", 10);
         
         // Control loop timer
         timer_ = this->create_wall_timer(std::chrono::milliseconds(100), std::bind(&GoalDriver::control_loop, this));

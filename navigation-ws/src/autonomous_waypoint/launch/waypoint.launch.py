@@ -5,16 +5,16 @@ from launch_ros.actions import Node
 
 def generate_launch_description():
     config = os.path.join(
-        get_package_share_directory('driver_pkg'),
+        get_package_share_directory('autonomous_waypoint'),
         'config',
         'params.yaml'
     )
 
     return LaunchDescription([
         Node(
-            package='driver_pkg',
-            executable='goal_driver_node',
-            name='goal_driver',
+            package='autonomous_waypoint',
+            executable='waypoint_node',
+            name='waypoint_driver',
             parameters=[config],
             output='screen'
         )

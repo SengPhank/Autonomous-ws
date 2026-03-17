@@ -3,20 +3,20 @@
 - Ros2 Humble
 - C++17
 
-# Preperation
-Source ros
+# Installing
+## Preperation
 ```bash
+sudo apt update 
 source /opt/ros/humble/setup.bash
 ```
 Clone and enter ws
 ```bash
-git clone https://github.com/SengPhank/Autonomous-ws.git
+git clone https://github.com/SengPhank/Autonomous-ws.git --recursive
 cd Autonomous-ws
 ```
 
-# Building
-
-Build messages
+## Building
+Build messages FIRST!
 ```bash
 cd interfaces-ws
 colcon build
@@ -24,47 +24,48 @@ source install/setup.bash
 cd ..
 ```
 
-Build zed2i wrapper
+Build and source zed2i wrapper 
 ```bash
 cd AutoNav_modules
+sudo apt install ros-humble-rtabmap-ros # Install rtabmap_ros binaries
+rosdep update 
+rosdep install --from-paths src --ignore-src -r -y # install dependencies
 colcon build --symlink-install --cmake-args=-DCMAKE_BUILD_TYPE=Release --parallel-workers $(nproc) # build the workspace
+source install/setup.bash
 cd ..
 ```
-Build autonomous and simulation features
+Build and source autonomous and simulation features
 ```bash
 # Autonomous features
 cd navigation-ws
 colcon build --symlink
+source install/setup.bash
 cd ..
+# Sim features
 cd simulation-ws
 colcon build --symlink
+source install/setup.bash
 cd ..
 ```
-
-Source all builds
-```bash
-# Source features
-source AutoNav_modules/install/setup.bash
-source navigation-ws/install/setup.bash
-source simulation-ws/install/setup.bash
-```
-# Launching nodes
+## Launching nodes
 You must run each node in their own independent terminal (after sourcing)
 
 Launch zed2i cameras
 ```bash
-cd AutoNav_modules
-so
-ros2 launch mapping_module new_rtab.launch.py camera_model:=zed2i
-```
-Launch rviz2 for visualisation
-```bash
-rviz2   
+ros2 launch autonomous_camera camera.launch.py camera_model:=zed2i
 ```
 
 Launch features
 ```bash
 cd navigation-ws
 ros2 launch autonomous_costmap costmap.launch.py # Costmap
-ros2 launch driver_pkg goal_driver.launch.py # autonDriver
+ros2 launch autonomous_waypoint waypoint.launch.py # autonDriver
 ```
+
+Launch rviz2 for visualisation (OPTIONAL)
+```bash
+rviz2   
+```
+
+## Launching a simulation
+TBA
