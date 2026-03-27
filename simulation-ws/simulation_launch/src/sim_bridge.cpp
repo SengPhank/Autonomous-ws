@@ -8,7 +8,7 @@ class SimBridge : public rclcpp::Node {
 public:
     SimBridge() : Node("sim_bridge") {
         move_cmd_sub_ = this->create_subscription<rover_messages::msg::DriveMoveCmd>(
-            "rover/drive/move_cmd", 10,
+            "rover/drive/drive_move_cmd", 10,
             std::bind(&SimBridge::move_cmd_callback, this, std::placeholders::_1));
         
         cmd_vel_pub_ = this->create_publisher<geometry_msgs::msg::Twist>(

@@ -239,7 +239,7 @@ private:
         geometry_msgs::msg::TransformStamped tf;
         try {
             tf = tf_buffer_->lookupTransform(
-                "odom", "zed_camera_link", tf2::TimePointZero);
+                "odom", "base_link", tf2::TimePointZero); // change base_link -> zed_camera_link
         } catch (const tf2::TransformException &ex) {
             RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
                 "TF lookup failed: %s", ex.what());
