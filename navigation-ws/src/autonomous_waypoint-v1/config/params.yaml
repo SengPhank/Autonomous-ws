@@ -1,0 +1,33 @@
+waypoint_node:
+  ros__parameters:
+    # Distance threshold for "goal reached" (meters)
+    goal_tolerance: 0.15
+
+    # Maximum time to reach goal before timeout (seconds)
+    goal_timeout_sec: 45.0
+
+    # Hysteresis band for heading control (radians)
+    # Must exceed ENTER to stop driving and re-turn (~20 deg)
+    # Must drop below EXIT to stop turning and start driving (~8.5 deg)
+    # EXIT < ENTER is critical — prevents mode oscillation
+    turn_enter_threshold: 0.35
+    turn_exit_threshold: 0.15
+
+    # Fixed forward drive speed [0.0, 1.0]
+    drive_speed: 0.5
+
+    # Distance that represents "full speed" — not used for speed scaling
+    # in the current implementation (drive_speed is fixed), kept for future use
+    max_distance: 2.5
+
+    # RTABMap tracking quality thresholds
+    # Fewer visual features than this = tracking unreliable → RECOVERING
+    # Normal operation: hundreds of features. 0 = completely lost.
+    min_visual_words: 20
+
+    # Odometry linear variance above this = unreliable → RECOVERING
+    # Tune by observing Memory/Odometry_variance_lin in ros2 topic echo /info
+    max_odom_variance: 0.1
+
+    # How long to wait in RECOVERING before aborting the goal (seconds)
+    recovery_timeout_sec: 5.0
