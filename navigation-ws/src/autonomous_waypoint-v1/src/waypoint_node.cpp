@@ -290,6 +290,9 @@ private:
             if (distance < goal_tolerance_) { goal_complete(distance); return; }
 
             double norm_yaw = std::clamp(yaw_error / M_PI, -1.0, 1.0);
+            // Apply minimum actuation threshold to avoid sub-threshold oscillation
+            if (std::abs(norm_yaw) > 0.0 && std::abs(norm_yaw) < 0.08)
+                norm_yaw = std::copysign(0.08, norm_yaw);
             auto cmd = rover_messages::msg::DriveMoveCmd();
             cmd.x_cmd = 0.0; cmd.y_cmd = 0.0; cmd.yaw_cmd = norm_yaw;
             move_cmd_pub_->publish(cmd);

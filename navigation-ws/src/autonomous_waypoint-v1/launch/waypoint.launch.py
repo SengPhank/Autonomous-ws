@@ -13,7 +13,7 @@ def generate_launch_description():
     return LaunchDescription([
         Node(
             package='autonomous_waypoint',
-            executable='waypoint_node',
+            executable='queue_waypoint', # 'waypoint_node'
             name='waypoint_driver',
             parameters=[config],
             output='screen'

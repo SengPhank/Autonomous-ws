@@ -22,8 +22,13 @@ include_directories(
 
 # ============== Add Goal driver executable ============== 
 add_executable(waypoint_node src/waypoint_node.cpp)
+add_executable(queue_waypoint src/queue_waypoint.cpp)
 # Manually add rover_messages include directory
 target_include_directories(waypoint_node PUBLIC
+  ${rover_messages_INCLUDE_DIRS}
+)
+
+target_include_directories(queue_waypoint PUBLIC
   ${rover_messages_INCLUDE_DIRS}
 )
 ament_target_dependencies(waypoint_node
@@ -34,8 +39,17 @@ ament_target_dependencies(waypoint_node
   rover_messages
   rtabmap_msgs
 )
+
+ament_target_dependencies(queue_waypoint
+  rclcpp
+  tf2_ros
+  tf2_geometry_msgs
+  geometry_msgs
+  rover_messages
+  rtabmap_msgs
+)
 # ============== Install both executables ============== 
-install(TARGETS waypoint_node
+install(TARGETS waypoint_node queue_waypoint
   DESTINATION lib/${PROJECT_NAME}
 )
 # Install
